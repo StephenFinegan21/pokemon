@@ -3,37 +3,91 @@ import { getOptionsForVote } from "../utils/getRandomPokemon";
 import { trpc } from "../utils/trpc";
 import { useEffect, useState } from "react";
 
+
 export default function Home() {
-  const[first, setFirst] = useState<number>(0)
-  const[second, setSecond] = useState<number>(0)
-  
-  const firstPokemonId = trpc.useQuery(['getPokemonById', { id: first }]);
-  const secondPokemonId = trpc.useQuery(['getPokemonById', { id: second }]);
- 
-  console.log(firstPokemonId , secondPokemonId)
+  const [pokemonIds, setPokemonIds] = useState<number[]>([]);
+  const [first, second] = pokemonIds;
 
- useEffect(() => {
-  setFirst(getOptionsForVote()[0])
-  setSecond(getOptionsForVote()[1])
- }, [])
+  const firstPokemon = trpc.useQuery(["getPokemonById", { id: first }]);
+  const secondPokemon = trpc.useQuery(["getPokemonById", { id: second }]);
 
- 
- if (!firstPokemonId.data || first < 1) {
-  return <div>Loading...</div>;
-}
+  const voteMutation = trpc.useMutation(["cast-vote"])
+
+  useEffect(() => {
+    setPokemonIds(getOptionsForVote());
+  }, []);
+
+  if (!firstPokemon.data || !secondPokemon.data) {
+    return <div>Loading...</div>;
+  }
+  //console.log(firstPokemon.data)
+
+  const voteForRoundest = (vote: number, name: string) => {
+    if(vote === first){
+      voteMutation.mutate({votedFor : first, votedAgainst : second})
+    }
+    else{
+      voteMutation.mutate({votedFor : second, votedAgainst : first})
+
+    }
+    setPokemonIds(getOptionsForVote());
+  };
+
+
   return (
     <div className="h-screen w-screen flex flex-col justify-center max-w-md m-auto">
       <div className="text-center">Which Pokemon is Rounder?</div>
       <div className="border rounded p-8 flex justify-between">
-        <div className="w-32 h-32 bg-red-500 flex flex-col justify-center items-center">
-          <img src={firstPokemonId.data?.sprites.front_default} />
-          <p className="capitalize">{firstPokemonId.data?.name}</p>
+        <div>
+          {!firstPokemon.isLoading && !secondPokemon.isLoading &&(
+            <>
+              <Pokemon
+                name={firstPokemon.data.name}
+                sprite={firstPokemon.data.sprite}
+                vote={() => voteForRoundest(first, firstPokemon.data?.name)}
+              />
+            </>
+          )}
         </div>
-        <div className="w-32 h-32 bg-blue-500 flex flex-col justify-center items-center">
-        <img src={secondPokemonId.data?.sprites.front_default} />
-        <p className="capitalize">{secondPokemonId.data?.name}</p>
+        <div>
+          {secondPokemon.data && (
+            <>
+              <Pokemon
+                name={secondPokemon.data.name}
+                sprite={secondPokemon.data.sprite}
+                vote={() => voteForRoundest(second, secondPokemon.data?.name)}
+              />
+            </>
+          )}
         </div>
       </div>
     </div>
   );
 }
+
+type generatedPokemon = {
+  name: string | null;
+  sprite: string | null;
+  vote: () => void;
+};
+
+const Pokemon = (props: generatedPokemon) => {
+  console.log(props);
+  const { name, sprite } = props;
+
+  return (
+    <div className=" flex flex-col justify-center items-center">
+     
+     
+      <img className="w-32 h-32" src={sprite ? sprite : ""} />
+      <p className="capitalize">{name}</p>
+      <button
+        className="w-24 text-white bg-red-400 p-2 rounded-sm mt-4"
+        onClick={() => props.vote()}
+      >
+        Vote
+      </button>
+         
+    </div>
+  );
+};
